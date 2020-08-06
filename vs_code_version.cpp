@@ -10,7 +10,7 @@
 //#define SHORT_PRESS 1 
 //#define LONG_PRESS 2
 #define OPEN 1
-#define CLOSE 2   // Is ir really necessary
+#define CLOSE 0   // Is ir really necessary
 
 typedef enum enum_deviceStatus { 
   START = 10,
@@ -25,27 +25,31 @@ typedef enum enum_deviceStatus {
 deviceStatus state = START; 
 
 double timePressed = 0, timeReleased = 0;
-//int switchLED = 6;
-//int switchPin = 3;
-//int ledPin = 7;
-//int hallSensor = A2;
-//int switchPin_Dig = 3; 
-//int isStarted = 0;
-//int lightIntensity = 0;
-//volatile bool onState = false;
-//long minsElapsed = 0;
-//long secElapsed = 0;
+int button1 = A7;
+int button2 = A6;
+int bigLed1 = 3, bigLed2 = 5, bigLed3 = 6, bigLed4 = 9;
+int bigLed5 = 10, bigLed6 = 11;
+int buttonLed = 7;
+int buttonLed2 = 2;
+int brightness = 0;    // how bright the LED is
+int brightness2 = 0;
+int fadeAmount = 15, fadeAmount2 = 15;
+bool button1Pressed = false, button2Pressed = false;
 
 
 void setup() {
   Serial.begin(9600);
-//  pinMode(switchLED, OUTPUT);
-//  pinMode(switchPin, INPUT);
-//  pinMode(switchPin_Dig, INPUT);
-//  pinMode(ledPin, OUTPUT);
-//  pinMode(hallSensor, INPUT);
-//  attachInterrupt(digitalPinToInterrupt(switchPin_Dig), toggle, HIGH);
-  Timer1.initialize(100000); 
+  pinMode(button1, INPUT);
+  pinMode(button2, INPUT);
+  pinMode(bigLed1, OUTPUT);
+  pinMode(bigLed2, OUTPUT);
+  pinMode(bigLed3, OUTPUT);
+  pinMode(bigLed4, OUTPUT);
+  pinMode(bigLed5, OUTPUT);
+  pinMode(bigLed6, OUTPUT);
+  pinMode(buttonLed, OUTPUT);
+  pinMode(buttonLed2, OUTPUT);
+//  Timer1.initialize(100000); 
 }
 void loop() {
     switch(state){
@@ -53,7 +57,7 @@ void loop() {
                        break;
     case IDLE:         if(SensorSignal() == OPEN) state = DOOR_OPEN;
                        break;
-    case DOOR_OPEN:    if (SensorSignal() == CLOSE && buttonPress == 00)
+    case DOOR_OPEN:    if (SensorSignal() == CLOSE && (button1Pressed || button2Pressed))
                            state = IDLE; 
                        else if (SensorSignal() == CLOSE) {
                            state = RUN;
@@ -61,7 +65,7 @@ void loop() {
                        else 
                            state = DOOR_OPEN;
                        break;                      
-    case RUN:          main();
+    case RUN:          run_main();
                        break;
     case CANCEL:       if(SensorSignal() == CLOSE)      
                             state = RUN;
@@ -75,23 +79,81 @@ void loop() {
                             state = IDLE;
                         break;
                       
-    default:         state = IDLE;
+    default:           state = IDLE;
   }
   if (state == START)
   {
-    // Do nothing        
+    // Do nothing  
+    Serial.print ("State = START\n");      
   }
   else if (state == IDLE)
   {
     // Turn Lights OFF
+    Serial.print ("State = IDLE\n");
+    brightness = 0;
+    brightness2 = 0;
+    analogWrite(bigLed1, brightness);
+    analogWrite(bigLed2, brightness);
+    analogWrite(bigLed3, brightness);
+    analogWrite(bigLed4, brightness);
+    analogWrite(bigLed5, brightness2);
+    analogWrite(bigLed6, brightness2);
+    digitalWrite(buttonLed , LOW);
+    digitalWrite(buttonLed2 , LOW);
     // Reset the timer 
+    //    delay(100);
+    // Check the sensor in a loop is not neccessary?
   }
   else if (state == DOOR_OPEN)
   {
-    // Check which buttons are pressed
-    // Start the light dance accordingly
+    analogWrite(bigLed1, brightness);
+    analogWrite(bigLed2, brightness);
+    analogWrite(bigLed3, brightness);
+    analogWrite(bigLed4, brightness);
+    analogWrite(bigLed5, brightness2);
+    analogWrite(bigLed6, brightness2);
+    Serial.print("Brightness1 = ");
+    Serial.print(brightness);
+    Serial.print("\nBrightness2 = ");
+    Serial.print(brightness2);
+    Serial.print("\n");
+    delay(50);
+     // reverse the direction of the fading at the ends of the fade:
+    if (brightness <= 0) {
+      fadeAmount = 15;
+    }
+    else if (brightness >= 250) {
+      fadeAmount = -15;
+    }
+    if (brightness2 <= 0) {
+      fadeAmount2 = 15;
+    }
+    else if (brightness2 >= 250) {
+      fadeAmount2 = -15;
+    }
+    brightness = brightness + fadeAmount;
+    brightness2 = brightness2 + fadeAmount2;
+//     Check which buttons are pressed and start the light dance accordingly
+    if (analogRead(button1) >= 1000 ) button1Pressed = true;
+    if (analogRead(button2) >= 1000 ) button2Pressed = true;
+    if (button1Pressed && button2Pressed)
+    {
+      brightness = 255;
+      brightness2 = 255;
+      digitalWrite(buttonLed , HIGH);
+      digitalWrite(buttonLed2 , HIGH);
+    }
     // Update the light dance as the buttons get pressed
-    // Update the buttonPress here
+     else if(button1Pressed) //You can make this part shorter
+     { 
+      brightness = 255;
+      digitalWrite(buttonLed , HIGH);
+     }
+     else if(button2Pressed)
+     {
+      brightness2 = 255;
+      digitalWrite(buttonLed2 , HIGH);
+     }
   }
   else if (state == RUN){
     // Turn of the lights 
@@ -120,7 +182,9 @@ void loop() {
 }
 
 int SensorSignal(){
-  return 1;
+  if(state == IDLE || state == DOOR_OPEN)
+    return OPEN;
+  else return CLOSE;
 }
 // bool checktime()
 // {
@@ -129,3 +193,9 @@ int SensorSignal(){
 //   else 
 //     return false;
 // }
+int run_main()
+{
+}
+int checkCancel()
+{
+}
