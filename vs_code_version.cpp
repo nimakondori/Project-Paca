@@ -27,6 +27,7 @@ deviceStatus state = START;
 double timePressed = 0, timeReleased = 0;
 int button1 = A7;
 int button2 = A6;
+int senseSig = 4;
 int bigLed1 = 3, bigLed2 = 5, bigLed3 = 6, bigLed4 = 9;
 int bigLed5 = 10, bigLed6 = 11;
 int buttonLed = 7;
@@ -35,12 +36,18 @@ int brightness = 0;    // how bright the LED is
 int brightness2 = 0;
 int fadeAmount = 15, fadeAmount2 = 15;
 bool button1Pressed = false, button2Pressed = false;
+bool canceled = false, done = false;
+int finishTime1 = 30;
+int finishTime2 = 100;
+int currentTime1, currentTime2;
+
 
 
 void setup() {
   Serial.begin(9600);
   pinMode(button1, INPUT);
   pinMode(button2, INPUT);
+  pinMode(senseSig, INPUT);
   pinMode(bigLed1, OUTPUT);
   pinMode(bigLed2, OUTPUT);
   pinMode(bigLed3, OUTPUT);
@@ -58,14 +65,15 @@ void loop() {
     case IDLE:         if(SensorSignal() == OPEN) state = DOOR_OPEN;
                        break;
     case DOOR_OPEN:    if (SensorSignal() == CLOSE && (button1Pressed || button2Pressed))
-                           state = IDLE; 
+                           state = RUN; 
                        else if (SensorSignal() == CLOSE) {
-                           state = RUN;
+                           state = IDLE;
                        }
                        else 
                            state = DOOR_OPEN;
                        break;                      
-    case RUN:          run_main();
+    case RUN:          if(canceled)state = CANCEL;
+                       else if(done) state = DONE;
                        break;
     case CANCEL:       if(SensorSignal() == CLOSE)      
                             state = RUN;
@@ -92,6 +100,10 @@ void loop() {
     Serial.print ("State = IDLE\n");
     brightness = 0;
     brightness2 = 0;
+    button1Pressed = false;
+    button2Pressed = false;
+    canceled = false;
+    done = false;
     analogWrite(bigLed1, brightness);
     analogWrite(bigLed2, brightness);
     analogWrite(bigLed3, brightness);
@@ -101,24 +113,98 @@ void loop() {
     digitalWrite(buttonLed , LOW);
     digitalWrite(buttonLed2 , LOW);
     // Reset the timer 
-    //    delay(100);
+    currentTime1 = 0;
+    currentTime2 = 0;
     // Check the sensor in a loop is not neccessary?
   }
   else if (state == DOOR_OPEN)
   {
-    analogWrite(bigLed1, brightness);
-    analogWrite(bigLed2, brightness);
-    analogWrite(bigLed3, brightness);
-    analogWrite(bigLed4, brightness);
-    analogWrite(bigLed5, brightness2);
-    analogWrite(bigLed6, brightness2);
+    // analogWrite(bigLed1, brightness);
+    // analogWrite(bigLed2, brightness);
+    // analogWrite(bigLed3, brightness);
+    // analogWrite(bigLed4, brightness);
+    // analogWrite(bigLed5, brightness2);
+    // analogWrite(bigLed6, brightness2);
+    // Serial.print("Brightness1 = ");
+    // Serial.print(brightness);
+    // Serial.print("\nBrightness2 = ");
+    // Serial.print(brightness2);
+    // Serial.print("\n");
+    // delay(50);
+    digitalWrite(buttonLed , HIGH);
+    digitalWrite(buttonLed2 , HIGH);
+     // reverse the direction of the fading at the ends of the fade:
+    // if (brightness <= 0) {
+    //   fadeAmount = 15;
+    // }
+    // else if (brightness >= 250) {
+    //   fadeAmount = -15;
+    // }
+    // if (brightness2 <= 0) {
+    //   fadeAmount2 = 15;
+    // }
+    // else if (brightness2 >= 250) {
+    //   fadeAmount2 = -15;
+    // }
+    // brightness = brightness + fadeAmount;
+    // brightness2 = brightness2 + fadeAmount2;
+//     Check which buttons are pressed and start the light dance accordingly
+    if (analogRead(button1) >= 1000 ) button1Pressed = true;
+    if (analogRead(button2) >= 1000 ) button2Pressed = true;
+    // if (button1Pressed && button2Pressed)
+    // {
+    //   brightness = 255;
+    //   brightness2 = 255;
+    //   analogWrite(bigLed1, brightness);
+    //   analogWrite(bigLed2, brightness);
+    //   analogWrite(bigLed3, brightness);
+    //   analogWrite(bigLed4, brightness);
+    //   analogWrite(bigLed5, brightness);
+    //   analogWrite(bigLed6, brightness);
+    // }
+    // Update the light dance as the buttons get pressed
+     if(button1Pressed) //You can make this part shorter
+     { 
+      brightness = 255;
+      analogWrite(bigLed1, brightness);
+      analogWrite(bigLed2, brightness);
+      analogWrite(bigLed3, brightness);
+      analogWrite(bigLed4, brightness);
+     }
+     if(button2Pressed)
+     {
+      brightness2 = 255;
+      analogWrite(bigLed5, brightness2);
+      analogWrite(bigLed6, brightness2);
+     }
+  }
+  else if (state == RUN){
+    // Turn of the lights 
+    // brightness = 0;
+    // brightness2 = 0;
+    // analogWrite(bigLed1, brightness);
+    // analogWrite(bigLed2, brightness);
+    // analogWrite(bigLed3, brightness);
+    // analogWrite(bigLed4, brightness);
+    // analogWrite(bigLed5, brightness2);
+    // analogWrite(bigLed6, brightness2);
+    // Send the mosfet signal according to the buttons pressed
+    if(button1Pressed){
+      analogWrite(bigLed1, brightness);
+      analogWrite(bigLed2, brightness);
+      analogWrite(bigLed3, brightness);
+      analogWrite(bigLed4, brightness);
+    }
+    if(button2Pressed){
+      analogWrite(bigLed5, brightness2);
+      analogWrite(bigLed6, brightness2);
+    }
     Serial.print("Brightness1 = ");
     Serial.print(brightness);
     Serial.print("\nBrightness2 = ");
     Serial.print(brightness2);
     Serial.print("\n");
     delay(50);
-     // reverse the direction of the fading at the ends of the fade:
     if (brightness <= 0) {
       fadeAmount = 15;
     }
@@ -133,47 +219,206 @@ void loop() {
     }
     brightness = brightness + fadeAmount;
     brightness2 = brightness2 + fadeAmount2;
-//     Check which buttons are pressed and start the light dance accordingly
-    if (analogRead(button1) >= 1000 ) button1Pressed = true;
-    if (analogRead(button2) >= 1000 ) button2Pressed = true;
-    if (button1Pressed && button2Pressed)
-    {
-      brightness = 255;
-      brightness2 = 255;
-      digitalWrite(buttonLed , HIGH);
-      digitalWrite(buttonLed2 , HIGH);
-    }
-    // Update the light dance as the buttons get pressed
-     else if(button1Pressed) //You can make this part shorter
-     { 
-      brightness = 255;
-      digitalWrite(buttonLed , HIGH);
-     }
-     else if(button2Pressed)
-     {
-      brightness2 = 255;
-      digitalWrite(buttonLed2 , HIGH);
-     }
-  }
-  else if (state == RUN){
-    // Turn of the lights 
-    // Send the mosfet signal according to the buttons pressed
-    // Start the timer 
+    
     // consistently check the SensorSignal() to cancel the operations
+    while(true){
+      Serial.print("The state is : RUN\n");
+      if(SensorSignal() == OPEN)
+      {
+        canceled = true;
+        break;
+      }
+      delay(50);
+      currentTime1 = currentTime1 + 1;
+      currentTime2 = currentTime2 + 1;
+      if(button1Pressed && button2Pressed){
+        if(currentTime1 <= finishTime1 / 4){
+          analogWrite(bigLed1, brightness); 
+          digitalWrite(bigLed2, HIGH);
+          digitalWrite(bigLed3, HIGH);
+          digitalWrite(bigLed4, HIGH);
+        }
+        else if(currentTime1 <= finishTime1 / 2){
+          digitalWrite(bigLed1, LOW); 
+          analogWrite(bigLed2, brightness);
+          digitalWrite(bigLed3, HIGH);
+          digitalWrite(bigLed4, HIGH);
+        }
+        else if(currentTime1 <= 3*finishTime1 / 4){
+          digitalWrite(bigLed1, LOW); 
+          digitalWrite(bigLed2, LOW);
+          analogWrite(bigLed3, brightness);
+          digitalWrite(bigLed4, HIGH);
+        }
+        else if(currentTime1 < finishTime1){
+          digitalWrite(bigLed1, LOW); 
+          digitalWrite(bigLed2, LOW);
+          digitalWrite(bigLed3, LOW);
+          analogWrite(bigLed4, brightness);
+        }
+        else if(currentTime1 == finishTime1){
+          analogWrite(bigLed1, brightness);
+          delay(50);
+          analogWrite(bigLed2, brightness);
+          delay(100);
+          analogWrite(bigLed3, brightness);
+          delay(100);
+          analogWrite(bigLed4, brightness);
+          delay(100);
+          analogWrite(buttonLed, brightness);
+        }
+        if(currentTime2 <= finishTime2 / 4){
+            analogWrite(bigLed5, brightness2);
+            digitalWrite(bigLed6, HIGH);
+          }
+        else if(currentTime2 <= finishTime2 / 2){
+            analogWrite(bigLed5, brightness2);
+            digitalWrite(bigLed6, HIGH);
+          }
+        else if(currentTime2 <= 3*finishTime2 / 4){
+            digitalWrite(bigLed5, LOW);
+            analogWrite(bigLed4, brightness2);
+          }
+          else if(currentTime2 < finishTime2){
+            digitalWrite(bigLed5, LOW);
+            analogWrite(bigLed6, brightness2);
+          }
+          else if(currentTime2 == finishTime2){
+            delay(100);
+            analogWrite(bigLed5, brightness2);
+            delay(100);
+            analogWrite(bigLed6, brightness2);
+            delay(100);
+            analogWrite(buttonLed2, brightness2);
+          }
+      }
+      else if(button2Pressed){
+        if(currentTime2 <= finishTime2 / 4)
+          analogWrite(bigLed5, brightness2);
+          digitalWrite(bigLed6, HIGH);
+        }
+      else if(currentTime2 <= finishTime2 / 2){
+          analogWrite(bigLed5, brightness2);
+          digitalWrite(bigLed6, HIGH);
+        }
+      else if(currentTime2 <= 3*finishTime2 / 4){
+          digitalWrite(bigLed5, LOW);
+          analogWrite(bigLed4, brightness2);
+        }
+       else if(currentTime2 < finishTime2){
+          digitalWrite(bigLed5, LOW);
+          analogWrite(bigLed6, brightness2);
+        }
+       else if(currentTime2 == finishTime2){
+          delay(100);
+          analogWrite(bigLed5, brightness2);
+          delay(100);
+          analogWrite(bigLed6, brightness2);
+          delay(100);
+          analogWrite(buttonLed2, brightness2);
+        }
+      }
+        //if only button one is pressed
+        else if(button1Pressed ){
+        if(currentTime1 <= finishTime1 / 4){
+          analogWrite(bigLed1, brightness); 
+          digitalWrite(bigLed2, HIGH);
+          digitalWrite(bigLed3, HIGH);
+          digitalWrite(bigLed4, HIGH);
+        }
+        else if(currentTime1 <= finishTime1 / 2){
+          digitalWrite(bigLed1, LOW); 
+          analogWrite(bigLed2, brightness);
+          digitalWrite(bigLed3, HIGH);
+          digitalWrite(bigLed4, HIGH);
+        }
+        else if(currentTime1 <= 3*finishTime1 / 4){
+          digitalWrite(bigLed1, LOW); 
+          digitalWrite(bigLed2, LOW);
+          analogWrite(bigLed3, brightness);
+          digitalWrite(bigLed4, HIGH);
+        }
+        else if(currentTime1 < finishTime1){
+          digitalWrite(bigLed1, LOW); 
+          digitalWrite(bigLed2, LOW);
+          digitalWrite(bigLed3, LOW);
+          analogWrite(bigLed4, brightness);
+        }
+        else if(currentTime1 == finishTime1){
+          analogWrite(bigLed1, brightness);
+          delay(50);
+          analogWrite(bigLed2, brightness);
+          delay(100);
+          analogWrite(bigLed3, brightness);
+          delay(100);
+          analogWrite(bigLed4, brightness);
+          delay(100);
+          analogWrite(buttonLed, brightness);
+        }
+      }  
+      if (brightness <= 0) {
+      fadeAmount = 15;
+    }
+    else if (brightness >= 250) {
+      fadeAmount = -15;
+    }
+    if (brightness2 <= 0) {
+      fadeAmount2 = 15;
+    }
+    else if (brightness2 >= 250) {
+      fadeAmount2 = -15;
+    }
+    brightness = brightness + fadeAmount;
+    brightness2 = brightness2 + fadeAmount2;
+    } 
+    if(!canceled)done = true;
     // Maybe quickly turn off the the mosfet signal here before changing the state to cancel
   }
   else if(state == CANCEL)
   {
+    Serial.print("The state is : CANCEL\n");
     // Double-Check the Mosfet signal one more time to turn off the device
     // Display some sort of message using the light dance that the device is in resume state
   }
   else if (state == DONE){
+    Serial.print("state = DONE\n");
     // Turn off the mosfet signal 
     // nothing else I can think of at the moment   
   }
 
   else if (state == LIGHT_DANCE_2){
     // Start the New light dance 
+//    digitalWrite(buttonLed, HIGH);
+//    digitalWrite(buttonLed2, HIGH);
+    analogWrite(bigLed1, brightness);
+    delay(50);
+    analogWrite(bigLed2, brightness);
+    delay(100);
+    analogWrite(bigLed3, brightness);
+    delay(100);
+    analogWrite(bigLed4, brightness);
+    delay(100);
+    analogWrite(buttonLed, brightness);
+    delay(100);
+    analogWrite(bigLed5, brightness2);
+    delay(100);
+    analogWrite(bigLed6, brightness2);
+    delay(100);
+    analogWrite(buttonLed2, brightness2);
+    if (brightness <= 0) {
+      fadeAmount = 255;
+    }
+    else if (brightness >= 250) {
+      fadeAmount = -255;
+    }
+    if (brightness2 <= 0) {
+      fadeAmount2 = 255;
+    }
+    else if (brightness2 >= 250) {
+      fadeAmount2 = -255;
+    }
+    brightness = brightness + fadeAmount;
+    brightness2 = brightness2 + fadeAmount2;
   }
   else
   {
@@ -182,7 +427,7 @@ void loop() {
 }
 
 int SensorSignal(){
-  if(state == IDLE || state == DOOR_OPEN)
+  if(digitalRead(senseSig) == LOW)
     return OPEN;
   else return CLOSE;
 }
@@ -193,9 +438,8 @@ int SensorSignal(){
 //   else 
 //     return false;
 // }
-int run_main()
-{
-}
 int checkCancel()
 {
+  if(analogRead(button1)) return true;
+  else return false;
 }
