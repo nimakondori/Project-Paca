@@ -21,7 +21,8 @@
     RUN = 13,
     CANCEL = 14,
     DONE = 15,
-    LIGHT_DANCE_2 = 17
+    LIGHT_DANCE_2 = 16,
+    COMPLETED = 17
   }deviceStatus;
 
   deviceStatus state = START; 
@@ -29,6 +30,7 @@
   double timePressed = 0, timeReleased = 0;
   int button1 = A7;
   int button2 = A6;
+  int MOSFET = 12, MOSFET2 =A5;
   int senseSig = 4;
   int bigLed1 = 3, bigLed2 = 5, bigLed3 = 6, bigLed4 = 9;
   int bigLed5 = 10, bigLed6 = 11;
@@ -38,10 +40,11 @@
   int brightness2 = 0;
   int fadeAmount = 15, fadeAmount2 = 15;
   bool button1Pressed = false, button2Pressed = false;
-  bool cancelButton1Pressed = false, cancelButton2Pressed = false;
+  // bool cancelButton1Pressed = false, cancelButton2Pressed = false;
   bool canceled = false, done = false;
   bool FirstTimePress = false, FirstTimePress2 = false;
   bool userCanceled1 = !FirstTimePress, userCanceled2 = !FirstTimePress;
+  bool topDone = false, bottomDone = false;
   int finishTime1 = BOTTOM_MAX_TIME;
   int finishTime2 = TOP_MAX_TIME;
   int currentTime1, currentTime2;
@@ -61,37 +64,44 @@
     pinMode(bigLed6, OUTPUT);
     pinMode(buttonLed, OUTPUT);
     pinMode(buttonLed2, OUTPUT);
+    pinMode (MOSFET, OUTPUT);
+    pinMode(MOSFET2, OUTPUT);
   //  Timer1.initialize(100000); 
   }
   void loop() {
       switch(state){
-      case START:        state = IDLE;
-                        break;
-      case IDLE:         if(SensorSignal() == OPEN) state = DOOR_OPEN;
-                        break;
-      case DOOR_OPEN:    if (SensorSignal() == CLOSE && (button1Pressed || button2Pressed))
-                            state = RUN; 
-                        else if (SensorSignal() == CLOSE) {
-                            state = IDLE;
-                        }
-                        else 
-                            state = DOOR_OPEN;
-                        break;                      
-      case RUN:          if(canceled)state = CANCEL;
-                        else if(done) state = DONE;
-                        break;
-      case CANCEL:       if(SensorSignal() == CLOSE)      
-                              state = RUN;
+      case START:          state = IDLE;
+                           break;
+      case IDLE:           if(SensorSignal() == OPEN) state = DOOR_OPEN;
+                           break;
+      case DOOR_OPEN:      if (SensorSignal() == CLOSE && (button1Pressed || button2Pressed))
+                              state = RUN; 
+                           else if (SensorSignal() == CLOSE) {
+                              state = IDLE;
+                           }
+                           else 
+                              state = DOOR_OPEN;
+                           break;                      
+      case RUN:            if(canceled)state = CANCEL;
+                           else if(done) state = DONE;
+                           break;
+      case CANCEL:         if (userCanceled1 && userCanceled2) state = COMPLETED;
+                           else if(SensorSignal() == CLOSE) state = RUN;
+                              
                         //  else if (checkCancel())
                         //       state = IDLE;
                         break;
-      case DONE:         if (SensorSignal() == OPEN)  
-                              state = LIGHT_DANCE_2; 
-                        break;
-      case LIGHT_DANCE_2: state = IDLE;
+      case DONE:            if (userCanceled1 && userCanceled2) state = COMPLETED;
+                            else if (topDone || bottomDone) state = LIGHT_DANCE_2; 
+                            else state = RUN;
+                            break;
+      case LIGHT_DANCE_2: if (SensorSignal() == OPEN)
+                            state = IDLE;
+                          break;
+      case COMPLETED:     state = IDLE;
                           break;
                          
-      default:           state = IDLE;
+      default:            state = IDLE;
     }
     if (state == START)
     {
@@ -100,6 +110,8 @@
     }
     else if (state == IDLE)
     {
+      digitalWrite(MOSFET, HIGH);
+      analogWrite(MOSFET2, 1024);
       // Turn Lights OFF
       Serial.print ("State = IDLE\n");
       brightness = 0;
@@ -110,6 +122,10 @@
       done = false;
       FirstTimePress = false;
       FirstTimePress2 = false;
+      userCanceled1 = false; 
+      userCanceled2 = false; 
+      topDone = false;
+      bottomDone = false; 
       analogWrite(bigLed1, brightness);
       analogWrite(bigLed2, brightness);
       analogWrite(bigLed3, brightness);
@@ -203,10 +219,11 @@
             analogWrite(bigLed4, brightness);
           }
           else if(currentTime1 >= finishTime1){
-          digitalWrite(bigLed1, LOW); 
+            digitalWrite(bigLed1, LOW); 
             digitalWrite(bigLed2, LOW);
             digitalWrite(bigLed3, LOW);
             digitalWrite(bigLed4, LOW);
+            bottomDone = true;
           }
           if(currentTime2 <= finishTime2 / 2){
               analogWrite(bigLed5, brightness2);
@@ -219,6 +236,7 @@
         else if(currentTime2 >= finishTime2){
               digitalWrite(bigLed5, LOW);
               digitalWrite(bigLed6, LOW);
+              topDone = true;
             }
         }
         else if(button2Pressed && !button1Pressed){
@@ -234,9 +252,14 @@
         else if(currentTime2 >= finishTime2){
             digitalWrite(bigLed5, LOW);
             digitalWrite(bigLed6, LOW);
-          }
-          if (currentTime2>=finishTime2) break;
+            topDone = true;
 
+          }
+        if (currentTime2>=finishTime2) 
+        {
+         topDone = true;
+          break;
+        }
         }
           //if only button one is pressed
           else if(button1Pressed && !button2Pressed){
@@ -276,8 +299,13 @@
             digitalWrite(bigLed2, LOW);
             digitalWrite(bigLed3, LOW);
             digitalWrite(bigLed4, LOW);
+            bottomDone = true;
           }  
-          if (currentTime1>=finishTime1) break;
+          if (currentTime1>=finishTime1) 
+          {
+            bottomDone = true;
+            break;
+          }
         }
         if (brightness <= 0) {
         fadeAmount = 15;
@@ -309,6 +337,7 @@
           button1Pressed = true;
           currentTime1 = 0;
           brightness = 255;
+          userCanceled1 = false;
           analogWrite(bigLed1, brightness); 
           analogWrite(bigLed2, brightness);
           analogWrite(bigLed3, brightness);
@@ -318,6 +347,7 @@
         {
           currentTime1 = BOTTOM_MAX_TIME + 10;  // The plus 10 is just to make sure it is not going to run
           brightness = 0;
+          userCanceled1 = true;
           analogWrite(bigLed1, brightness); 
           analogWrite(bigLed2, brightness);
           analogWrite(bigLed3, brightness);
@@ -332,6 +362,7 @@
         {
           currentTime2 = 0;       
           brightness2 = 255;
+          userCanceled2 = false;
           analogWrite(bigLed5, brightness2); 
           analogWrite(bigLed6, brightness2);
         }
@@ -339,6 +370,7 @@
         {
           currentTime2 = TOP_MAX_TIME + 10;       
           brightness2 = 0;
+          userCanceled2 = true;
           analogWrite(bigLed5, brightness2); 
           analogWrite(bigLed6, brightness2);
         }
@@ -353,6 +385,10 @@
       // Turn off the mosfet signal 
       
       // nothing else I can think of at the moment 
+        
+    }
+
+    else if (state == LIGHT_DANCE_2){
       brightness = brightness2;
       Serial.print(brightness);
       analogWrite(bigLed1, brightness);
@@ -377,11 +413,15 @@
       }
       brightness = brightness + fadeAmount;
       brightness2 = brightness2 + fadeAmount2;
-      delay(50);  
-    }
+      delay(50);
 
-    else if (state == LIGHT_DANCE_2){
+
+
       Serial.print("The state is : LIGHT_DANCE_2\n"); 
+      
+    }
+    else if (state == COMPLETED)
+    {
       brightness = 0;
       brightness2 = 0;
       digitalWrite(bigLed1, brightness);
