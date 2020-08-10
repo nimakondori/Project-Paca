@@ -10,6 +10,9 @@
   //#define LONG_PRESS 2
   #define OPEN 1
   #define CLOSE 0   // Is ir really necessary
+  #define TOP_MAX_TIME 100
+  #define BOTTOM_MAX_TIME 200
+  
 
   typedef enum enum_deviceStatus { 
     START = 10,
@@ -37,8 +40,10 @@
   bool button1Pressed = false, button2Pressed = false;
   bool cancelButton1Pressed = false, cancelButton2Pressed = false;
   bool canceled = false, done = false;
-  int finishTime1 = 200;
-  int finishTime2 = 100;
+  bool FirstTimePress = false, FirstTimePress2 = false;
+  bool userCanceled1 = !FirstTimePress, userCanceled2 = !FirstTimePress;
+  int finishTime1 = BOTTOM_MAX_TIME;
+  int finishTime2 = TOP_MAX_TIME;
   int currentTime1, currentTime2;
 
 
@@ -83,10 +88,9 @@
       case DONE:         if (SensorSignal() == OPEN)  
                               state = LIGHT_DANCE_2; 
                         break;
-      case LIGHT_DANCE_2:if (SensorSignal() == CLOSE)
-                              state = IDLE;
+      case LIGHT_DANCE_2: state = IDLE;
                           break;
-                        
+                         
       default:           state = IDLE;
     }
     if (state == START)
@@ -104,6 +108,8 @@
       button2Pressed = false;
       canceled = false;
       done = false;
+      FirstTimePress = false;
+      FirstTimePress2 = false;
       analogWrite(bigLed1, brightness);
       analogWrite(bigLed2, brightness);
       analogWrite(bigLed3, brightness);
@@ -158,6 +164,8 @@
     }
     else if (state == RUN){
       // consistently check the SensorSignal() to cancel the operations
+      FirstTimePress = false;
+      FirstTimePress2 = false;
       while(currentTime1 < finishTime1 || currentTime2 < finishTime2){
         Serial.print("The state is : RUN\n");
         if(SensorSignal() == OPEN)
@@ -296,21 +304,45 @@
       Serial.print("The state is : CANCEL\n");
       canceled = false;
       if(analogRead(button1) > 1000){
-        button1Pressed = true;
-        currentTime1 = 0;
-        brightness = 255;
-        analogWrite(bigLed1, brightness); 
-        analogWrite(bigLed2, brightness);
-        analogWrite(bigLed3, brightness);
-        analogWrite(bigLed4, brightness);
+        FirstTimePress = !FirstTimePress;
+        if(FirstTimePress){
+          button1Pressed = true;
+          currentTime1 = 0;
+          brightness = 255;
+          analogWrite(bigLed1, brightness); 
+          analogWrite(bigLed2, brightness);
+          analogWrite(bigLed3, brightness);
+          analogWrite(bigLed4, brightness);
+        }
+        else
+        {
+          currentTime1 = BOTTOM_MAX_TIME + 10;  // The plus 10 is just to make sure it is not going to run
+          brightness = 0;
+          analogWrite(bigLed1, brightness); 
+          analogWrite(bigLed2, brightness);
+          analogWrite(bigLed3, brightness);
+          analogWrite(bigLed4, brightness);
+        }
+        while(analogRead(button1) > 1000);
       }
       else if(analogRead (button2) > 1000){
         button2Pressed = true;
-        currentTime2 = 0;       
-        brightness2 = 255;
-        analogWrite(bigLed5, brightness2); 
-        analogWrite(bigLed6, brightness2);
-      
+        FirstTimePress2 = !FirstTimePress2;
+        if (FirstTimePress2)
+        {
+          currentTime2 = 0;       
+          brightness2 = 255;
+          analogWrite(bigLed5, brightness2); 
+          analogWrite(bigLed6, brightness2);
+        }
+        else 
+        {
+          currentTime2 = TOP_MAX_TIME + 10;       
+          brightness2 = 0;
+          analogWrite(bigLed5, brightness2); 
+          analogWrite(bigLed6, brightness2);
+        }
+        while(analogRead(button2) > 1000);
       }
     
       // Double-Check the Mosfet signal one more time to turn off the device
@@ -319,10 +351,8 @@
     else if (state == DONE){
       Serial.print("state = DONE\n");
       // Turn off the mosfet signal 
-      // nothing else I can think of at the moment   
-    }
-
-    else if (state == LIGHT_DANCE_2){
+      
+      // nothing else I can think of at the moment 
       brightness = brightness2;
       Serial.print(brightness);
       analogWrite(bigLed1, brightness);
@@ -347,7 +377,19 @@
       }
       brightness = brightness + fadeAmount;
       brightness2 = brightness2 + fadeAmount2;
-      delay(30);
+      delay(50);  
+    }
+
+    else if (state == LIGHT_DANCE_2){
+      Serial.print("The state is : LIGHT_DANCE_2\n"); 
+      brightness = 0;
+      brightness2 = 0;
+      digitalWrite(bigLed1, brightness);
+      digitalWrite(bigLed2, brightness);
+      digitalWrite(bigLed3, brightness);
+      digitalWrite(bigLed4, brightness);
+      digitalWrite(bigLed5, brightness2);
+      digitalWrite(bigLed6, brightness2);
     }
     else
     {
